@@ -1,69 +1,225 @@
-import Image from "next/image";
-
+"use client";
+import Link from "next/link";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Plus,
+  Files,
+  CheckCheck,
+  PencilLine,
+  HardDrive,
+  Upload,
+  Braces,
+  FileText,
+  ShieldCheck,
+} from "lucide-react";
+import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { useDocuments } from "@/components/documents/document-provider";
+import { DocumentTable } from "@/components/documents/document-table";
+import { formatSize } from "@/lib/documents";
 export default function Home() {
+  const { documents, loaded } = useDocuments();
+  const ready = documents.filter((d) => d.status === "Ready").length;
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="page dashboard">
+      <PageHeader
+        eyebrow="YOUR KNOWLEDGE WORKSPACE"
+        title="A home for your knowledge."
+        description="Turn everyday documents into organized, portable knowledge."
+      >
+        <Button asChild>
+          <Link href="/upload">
+            <Plus size={17} />
+            Upload document
+          </Link>
+        </Button>
+      </PageHeader>
+      <section className="welcome-panel">
+        <div className="welcome-copy">
+          <span className="section-kicker">
+            <span />
+            OPEN BY DESIGN
+          </span>
+          <h2>
+            Good knowledge deserves
+            <br />a little structure.
+          </h2>
+          <p>
+            Bring your documents together. Add context, review the details,
+            <br className="desktop-break" /> and explore what structured
+            knowledge can look like.
           </p>
+          <Button asChild variant="outline">
+            <Link href="/upload">
+              Build your first document <ArrowRight size={16} />
+            </Link>
+          </Button>
+          <span className="supported-formats">PDF, DOCX, Markdown & TXT</span>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="structure-art" aria-hidden="true">
+          <div className="art-grid" />
+          <div className="art-source">
+            <span className="art-file">
+              <FileText size={25} />
+            </span>
+            <div>
+              <span className="art-line long" />
+              <span className="art-line" />
+            </div>
+            <span className="art-source-label">your-document.md</span>
+          </div>
+          <div className="art-connector">
+            <ArrowRight size={22} />
+          </div>
+          <div className="art-code">
+            <div className="art-code-head">
+              <Braces size={17} />
+              <span>A more connected format</span>
+              <span className="art-dot" />
+            </div>
+            <div className="code-lines">
+              <p>{"{"}</p>
+              <p>
+                &nbsp; <b>&quot;document&quot;</b>: {"{"}
+              </p>
+              <p>
+                &nbsp; &nbsp; <b>&quot;title&quot;</b>:{" "}
+                <em>&quot;Your knowledge&quot;</em>,
+              </p>
+              <p>
+                &nbsp; &nbsp; <b>&quot;metadata&quot;</b>: {"{ ... }"},
+              </p>
+              <p>
+                &nbsp; &nbsp; <b>&quot;content&quot;</b>: [ ... ]
+              </p>
+              <p>&nbsp; {"}"}</p>
+              <p>{"}"}</p>
+            </div>
+          </div>
+          <span className="art-caption">
+            <ShieldCheck size={13} />
+            Your content. More context.
+          </span>
         </div>
-      </main>
+      </section>
+      <section className="stats-grid" aria-label="Document statistics">
+        {[
+          {
+            label: "Total documents",
+            value: documents.length,
+            icon: Files,
+            note: "In your workspace",
+          },
+          {
+            label: "Ready to review",
+            value: ready,
+            icon: CheckCheck,
+            note: "Metadata completed",
+            color: "green",
+          },
+          {
+            label: "Drafts",
+            value: documents.length - ready,
+            icon: PencilLine,
+            note: "A work in progress",
+            color: "orange",
+          },
+          {
+            label: "Source file size",
+            value: formatSize(documents.reduce((n, d) => n + d.size, 0)),
+            icon: HardDrive,
+            note: "Combined original file sizes",
+          },
+        ].map(({ label, value, icon: Icon, note, color }) => (
+          <div className="stat" key={label}>
+            <div className="stat-label">
+              {label}
+              <Icon size={17} />
+            </div>
+            <strong>{loaded ? value : "—"}</strong>
+            <span className={color}>
+              {color && <i />}
+              {note}
+            </span>
+          </div>
+        ))}
+      </section>
+      <section className="recent-section">
+        <div className="section-heading">
+          <div>
+            <h2>
+              Recent documents{" "}
+              <span className="count-badge">{documents.length}</span>
+            </h2>
+            <p>Your latest additions, all in one place.</p>
+          </div>
+          <Link className="text-link" href="/documents">
+            View all documents <ArrowRight size={15} />
+          </Link>
+        </div>
+        <div className="table-container">
+          {loaded ? (
+            <DocumentTable documents={documents.slice(0, 5)} />
+          ) : (
+            <div className="loading-state" role="status">
+              Loading your documents…
+            </div>
+          )}
+        </div>
+      </section>
+      <section className="workflow-section">
+        <div className="section-heading">
+          <h2>A simple path from document to knowledge</h2>
+          <span className="muted">Three steps. One organized workspace.</span>
+        </div>
+        <div className="workflow-grid">
+          {[
+            {
+              n: "01",
+              icon: Upload,
+              title: "Bring your document",
+              text: "Start with a PDF, Word document, or plain text file.",
+            },
+            {
+              n: "02",
+              icon: FileText,
+              title: "Add a little context",
+              text: "A title, a few tags, and the details that matter.",
+            },
+            {
+              n: "03",
+              icon: Braces,
+              title: "See the structure",
+              text: "Review your document and explore a visual OKF preview.",
+            },
+          ].map(({ n, icon: Icon, title, text }) => (
+            <div className="workflow-item" key={n}>
+              <span className="workflow-icon">
+                <Icon size={19} />
+              </span>
+              <div>
+                <h3>{title}</h3>
+                <p>{text}</p>
+              </div>
+              <span className="step-number">{n}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <div className="demo-note">
+        <span>
+          <span className="demo-dot" />A workspace to explore
+        </span>
+        <p>
+          You’re viewing a frontend preview with sample documents. OKF structure
+          previews are illustrative.
+        </p>
+        <Link href="/documents">
+          Explore library
+          <ArrowUpRight size={14} />
+        </Link>
+      </div>
     </div>
   );
 }
