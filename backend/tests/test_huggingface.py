@@ -60,6 +60,36 @@ def test_retry_and_sanitized_failure(settings: Settings, monkeypatch: pytest.Mon
     assert "secret" not in raised.value.message
 
 
+def test_rejected_request_reports_provider_reason(settings: Settings) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "The requested model is not supported by any provider",
+                    "code": "model_not_supported",
+                }
+            },
+        )
+
+    with pytest.raises(AppError) as raised:
+        client_for(settings, handler).embeddings(["text"])
+    assert raised.value.code == "HF_REQUEST_FAILED"
+    assert "HTTP 400" in raised.value.message
+    assert "not supported by any provider" in raised.value.message
+
+
+def test_rejected_request_opaque_body_falls_back_to_phrase(settings: Settings) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, text="opaque provider noise")
+
+    with pytest.raises(AppError) as raised:
+        client_for(settings, handler).embeddings(["text"])
+    assert raised.value.code == "HF_REQUEST_FAILED"
+    assert "HTTP 403: Forbidden" in raised.value.message
+    assert "opaque" not in raised.value.message
+
+
 def test_structure_validation(settings: Settings) -> None:
     good = {
         "choices": [

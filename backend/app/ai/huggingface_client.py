@@ -1,3 +1,4 @@
+import logging
 import random
 import time
 from urllib.parse import quote
@@ -9,6 +10,8 @@ from app.ai.prompts import STRUCTURE_SYSTEM
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.schemas.okf import AIStructure
+
+logger = logging.getLogger(__name__)
 
 
 class Message(BaseModel):
@@ -54,15 +57,25 @@ class HuggingFaceClient:
                     except ValueError:
                         pass
                     if attempt == self.settings.hf_max_retries:
+                        logger.warning(
+                            "hf_gave_up status=%s body=%s",
+                            response.status_code,
+                            response.text[:300],
+                        )
                         raise AppError(
                             "HF_UNAVAILABLE",
                             "Hugging Face is temporarily unavailable; retry processing later",
                             503,
                         )
                 elif response.is_error:
+                    # Permanent rejections carry provider reasons (unsupported model,
+                    # bad request) that never echo credentials; surface them for diagnosis.
+                    detail = self._error_detail(response)
+                    logger.warning("hf_rejected detail=%s body=%s", detail, response.text[:300])
                     raise AppError(
                         "HF_REQUEST_FAILED",
-                        "Hugging Face rejected the request; check token, model, provider access, and limits",
+                        f"Hugging Face rejected the request ({detail});"
+                        " check token, model, provider access, and limits",
                         502,
                     )
                 else:
@@ -81,6 +94,23 @@ class HuggingFaceClient:
                     ) from exc
             time.sleep(max(retry_after, min(2**attempt + random.random(), 15)))
         raise AppError("HF_UNAVAILABLE", "Hugging Face inference failed", 503)
+
+    @staticmethod
+    def _error_detail(response: httpx.Response) -> str:
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        message = ""
+        if isinstance(body, dict):
+            error = body.get("error")
+            if isinstance(error, dict) and isinstance(error.get("message"), str):
+                message = error["message"]
+            elif isinstance(error, str):
+                message = error
+        if not message:
+            message = httpx.codes.get_reason_phrase(response.status_code)
+        return f"HTTP {response.status_code}: {message}"[:300]
 
     def embeddings(self, texts: list[str]) -> JsonValue:
         url = self.settings.hf_embedding_url.format(
