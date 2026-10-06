@@ -1,6 +1,5 @@
-def main():
-    print("Hello from backend!")
+"""Convenience entrypoint; the application lives in app.main."""
 
+from app.main import app
 
-if __name__ == "__main__":
-    main()
+__all__ = ["app"]
