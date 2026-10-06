@@ -1,41 +1,45 @@
 import { FileText } from "lucide-react";
-import type { DocumentRecord } from "@/lib/documents";
 export function DocumentPreview({
-  document: doc,
+  filename,
+  fileType,
+  content,
 }: {
-  document: DocumentRecord;
+  filename: string;
+  fileType: string;
+  content: string;
 }) {
   return (
     <div className="content-preview">
       <div className="preview-toolbar">
         <span>
           <FileText size={15} />
-          {doc.filename}
+          {filename}
         </span>
         <span>
-          {["PDF", "DOCX"].includes(doc.fileType)
-            ? "Sample / text preview"
+          {["PDF", "DOCX"].includes(fileType)
+            ? "Extracted text"
             : "Plain text preview"}
         </span>
       </div>
       <article>
-        {doc.content
-          .split("\n")
-          .map((line, i) =>
-            line.startsWith("# ") ? (
-              <h2 key={i}>{line.slice(2)}</h2>
-            ) : line.startsWith("## ") ? (
-              <h3 key={i}>{line.slice(3)}</h3>
-            ) : line.trim() ? (
-              <p key={i}>{line}</p>
-            ) : (
-              <div className="paragraph-space" key={i} />
-            ),
-          )}
+        {content
+          ? content.split("\n").map((line, i) =>
+              line.startsWith("# ") ? (
+                <h2 key={i}>{line.slice(2)}</h2>
+              ) : line.startsWith("## ") ? (
+                <h3 key={i}>{line.slice(3)}</h3>
+              ) : line.trim() ? (
+                <p key={i}>{line}</p>
+              ) : (
+                <div className="paragraph-space" key={i} />
+              ),
+            )
+          : null}
       </article>
       <div className="preview-bottom">
-        Text is displayed as provided. Formatting and embedded media are not
-        rendered.
+        {content
+          ? "Text extracted by the server. Formatting and embedded media are not rendered."
+          : "No extracted text yet. Process the document to generate content."}
       </div>
     </div>
   );

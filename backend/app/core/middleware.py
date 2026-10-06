@@ -1,3 +1,4 @@
+from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -49,3 +50,22 @@ class BodyLimitMiddleware:
                 status_code=413,
             )
             await response(scope, receive, send)
+
+
+class NoStoreCacheMiddleware:
+    """Keep browsers and proxies from caching dynamic API responses."""
+
+    def __init__(self, app: ASGIApp, path_prefix: str = "/api/") -> None:
+        self.app, self.path_prefix = app, path_prefix
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not scope.get("path", "").startswith(self.path_prefix):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                MutableHeaders(raw=message["headers"])["Cache-Control"] = "no-store"
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)

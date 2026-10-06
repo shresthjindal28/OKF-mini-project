@@ -7,6 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, StringConstraints
 from app.models.document import DocumentStatus
 
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+TitleText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+]
+LooseText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=10000)]
 
 
 class DocumentCreate(BaseModel):
@@ -15,6 +19,16 @@ class DocumentCreate(BaseModel):
     author: str = Field(default="", max_length=500)
     document_type: ShortText = "Reference"
     tags: list[ShortText] = Field(default_factory=list, max_length=50)
+
+
+class DocumentUpdate(BaseModel):
+    """Partial metadata update; omitted fields keep their current value."""
+
+    title: TitleText | None = None
+    description: LooseText | None = None
+    author: LooseText | None = None
+    document_type: ShortText | None = None
+    tags: list[ShortText] | None = Field(default=None, max_length=50)
 
 
 class DocumentSummary(BaseModel):
@@ -58,3 +72,12 @@ class JobRead(BaseModel):
     error_message: str | None
     started_at: datetime
     finished_at: datetime | None
+
+
+class LibraryStats(BaseModel):
+    total: int
+    ready: int
+    in_progress: int
+    failed: int
+    total_bytes: int
+    indexed_chunks: int

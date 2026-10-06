@@ -50,8 +50,10 @@ All runtime settings come through Pydantic Settings from environment variables o
 | `MAX_PDF_PAGES` | 1000 pages; no OCR or encrypted PDFs |
 | `MAX_DOCX_UNCOMPRESSED_MB` | 100 MiB ZIP expansion ceiling |
 | `CHUNK_SIZE`, `CHUNK_OVERLAP` | Word budgets: 180 and 30, overlap strictly smaller than size |
-| `CORS_ORIGINS` | JSON array, e.g. `["http://localhost:3000"]`; empty by default |
+| `CORS_ORIGINS` | JSON array, e.g. `['http://localhost:3000']`; empty by default; not needed for the bundled Next.js proxy |
 | `MAX_CONCURRENT_PROCESSING` | 3 per worker (1–4); excess processing/deletion requests return 503 to preserve connection capacity |
+| `DB_POOL_SIZE` | 5 connections per worker (1–100) |
+| `DB_MAX_OVERFLOW` | 5 burst connections per worker (0–100) |
 | `LOG_LEVEL` | `INFO` |
 | `TEST_DATABASE_URL` | Explicit opt-in PostgreSQL URL for integration tests |
 
@@ -81,16 +83,18 @@ All JSON responses use `{"data": ..., "error": null}` or `{"data": null, "error"
 | POST | `/api/v1/documents` | Multipart upload; returns 201 and `UPLOADED` |
 | GET | `/api/v1/documents` | Paginated summaries |
 | GET | `/api/v1/documents/{id}` | Metadata, extraction, status and last error |
+| PATCH | `/api/v1/documents/{id}` | Partial metadata update; regenerates OKF artifacts when present |
 | POST | `/api/v1/documents/{id}/process` | Run or retry the complete pipeline synchronously |
 | GET | `/api/v1/documents/{id}/jobs` | Most recent 100 processing attempts |
 | GET | `/api/v1/documents/{id}/okf` | OKF Markdown files and metadata in an API wrapper |
 | GET | `/api/v1/documents/{id}/download` | Portable `.okf.zip` with original source |
 | DELETE | `/api/v1/documents/{id}` | Delete document, chunks, jobs, original and generated files |
+| GET | `/api/v1/stats` | Dashboard aggregates: status counts, total bytes, indexed chunks |
 | POST | `/api/v1/search` | Matching chunks and cosine similarities; no generated answer |
 | GET | `/health/live` | Process liveness |
 | GET | `/health/ready` | PostgreSQL, pgvector and embedding configuration readiness |
 
-List query parameters: `page` (1-based), `page_size` (1–100), `search` (literal title substring), `status`, `document_type`, `sort_by` (`created_at`, `updated_at`, `title`) and `order` (`asc`, `desc`). Sort fields are allowlisted and queries use SQLAlchemy parameters.
+List query parameters: `page` (1-based), `page_size` (1–100), `search` (literal substring across title, author, description and tags; backed by trigram indexes from migration `0002`), `status`, `status_group` (`ready`, `draft`, `failed`), `document_type`, `sort_by` (`created_at`, `updated_at`, `title`) and `order` (`asc`, `desc`). Sort fields are allowlisted and queries use SQLAlchemy parameters.
 
 ```sh
 curl -F 'file=@guide.md;type=text/markdown' \
@@ -111,9 +115,9 @@ curl -X DELETE http://localhost:8000/api/v1/documents/UUID
 
 A search request may also include `document_id`. Similarity is cosine similarity in [-1, 1], not a calibrated confidence or truth score.
 
-### Existing frontend contract
+### Frontend integration
 
-The inspected frontend uses localStorage/sample data, not HTTP calls. It has **not been modified** and is not automatically wired to this backend. Its existing `Ready`/`Draft` state cannot represent all processing stages. Future frontend integration must consume uppercase backend statuses (`UPLOADED`, `PROCESSING`, `EXTRACTED`, `STRUCTURING`, `READY`, `FAILED`) and map snake_case API properties to its camelCase display model: `original_filename → filename`, `file_size → size`, `document_type → documentType`, `created_at → createdAt`, `extracted_text → content`. `mime_type` identifies PDF/DOCX/MD/TXT. Set CORS to the frontend's actual origin. Upload and process are separate requests; poll document detail while processing if needed.
+The Next.js frontend in `../frontend` is wired to this API: it proxies `/api/v1/*` through its own origin (`API_ORIGIN`, default `http://127.0.0.1:8000`), so no CORS configuration is required for the bundled setup. It consumes uppercase backend statuses (`UPLOADED`, `PROCESSING`, `EXTRACTED`, `STRUCTURING`, `READY`, `FAILED`) and maps snake_case API properties to its camelCase display model: `original_filename → filename`, `file_size → size`, `document_type → documentType`, `created_at → createdAt`, `extracted_text → content`. Upload and process are separate requests; the UI polls document detail and jobs while processing.
 
 ## Document → OKF → index → search
 

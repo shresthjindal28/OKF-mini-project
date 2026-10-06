@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { FileText, ArrowUpRight } from "lucide-react";
-import { type DocumentRecord, formatDate } from "@/lib/documents";
+import {
+  type DocumentRecord,
+  type DocumentStatus,
+  formatDate,
+} from "@/lib/documents";
 export function FileIcon({ type }: { type: string }) {
   return (
     <span className={`file-icon file-${type.toLowerCase()}`}>
@@ -9,11 +13,27 @@ export function FileIcon({ type }: { type: string }) {
     </span>
   );
 }
-export function StatusBadge({ status }: { status: DocumentRecord["status"] }) {
+const STATUS_LABEL: Record<DocumentStatus, string> = {
+  UPLOADED: "Uploaded",
+  PROCESSING: "Processing",
+  EXTRACTED: "Extracted",
+  STRUCTURING: "Structuring",
+  READY: "Ready",
+  FAILED: "Failed",
+};
+const STATUS_CLASS: Record<DocumentStatus, string> = {
+  UPLOADED: "draft",
+  PROCESSING: "processing",
+  EXTRACTED: "draft",
+  STRUCTURING: "draft",
+  READY: "ready",
+  FAILED: "failed",
+};
+export function StatusBadge({ status }: { status: DocumentStatus }) {
   return (
-    <span className={`status-badge ${status.toLowerCase()}`}>
+    <span className={`status-badge ${STATUS_CLASS[status]}`}>
       <i />
-      {status}
+      {STATUS_LABEL[status]}
     </span>
   );
 }

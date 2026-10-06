@@ -1,5 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import {
@@ -8,7 +9,7 @@ import {
 } from "@/components/documents/document-provider";
 function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const { storageError } = useDocuments();
+  const { error, refresh } = useDocuments();
   return (
     <>
       <a href="#main" className="skip-link">
@@ -18,9 +19,15 @@ function Shell({ children }: { children: ReactNode }) {
       <div className="main-shell">
         <Header onMenu={() => setOpen(true)} />
         <main id="main">
-          {storageError && (
-            <div role="alert" className="notice">
-              {storageError}
+          {error && (
+            <div role="alert" className="error-banner">
+              <TriangleAlert size={17} />
+              <span>
+                {error}{" "}
+                <button type="button" onClick={() => void refresh()}>
+                  Retry
+                </button>
+              </span>
             </div>
           )}
           {children}
@@ -32,7 +39,7 @@ function Shell({ children }: { children: ReactNode }) {
           </span>
           <span>
             <i />
-            All changes stay in your browser
+            Powered by the OKF Builder API
           </span>
         </footer>
       </div>

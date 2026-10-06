@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -11,6 +11,7 @@ import {
   Info,
   ShieldCheck,
   LoaderCircle,
+  TriangleAlert,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,9 @@ import {
   type MetadataValues,
 } from "@/components/documents/metadata-form";
 import { useDocuments } from "@/components/documents/document-provider";
+import { ApiError, api } from "@/lib/api";
+import type { ApiDocumentDetail } from "@/lib/documents";
+
 export default function UploadPage() {
   const router = useRouter();
   const { addDocument } = useDocuments();
@@ -32,6 +36,7 @@ export default function UploadPage() {
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [statusText, setStatusText] = useState("");
   const form = useForm<MetadataValues>({
     resolver: zodResolver(metadataSchema),
     defaultValues: {
@@ -42,14 +47,7 @@ export default function UploadPage() {
       documentType: undefined,
     },
   });
-  useEffect(() => {
-    if (!file) return;
-    const timer = setInterval(
-      () => setProgress((p) => Math.min(100, p + 25)),
-      120,
-    );
-    return () => clearInterval(timer);
-  }, [file]);
+
   function selectFile(next: File | null) {
     setError("");
     if (
@@ -76,44 +74,69 @@ export default function UploadPage() {
         { shouldValidate: true },
       );
   }
+
+  async function processDocument(id: string) {
+    setStatusText("Extracting, structuring, and indexing…");
+    try {
+      const processed = await api.post<ApiDocumentDetail>(
+        `/documents/${id}/process`,
+      );
+      if (processed.status === "FAILED") {
+        router.push(`/documents/${id}?created=1`);
+        return;
+      }
+      router.push(`/documents/${id}?created=1`);
+    } catch (cause) {
+      // Processing problems are visible on the detail page; never lose the upload.
+      const message =
+        cause instanceof ApiError
+          ? cause.message
+          : "Processing could not be started.";
+      router.push(`/documents/${id}?created=1&warning=${encodeURIComponent(message)}`);
+    }
+  }
+
   async function submit(values: MetadataValues) {
     if (!file) {
       setError("Choose a document before continuing.");
       return;
     }
-    if (progress < 100) return;
     setSaving(true);
+    setError("");
     try {
-      const ext = file.name.split(".").pop()?.toUpperCase() ?? "TXT";
-      const textFile = ["TXT", "MD", "MARKDOWN"].includes(ext);
-      const content = textFile
-        ? (await file.text()).slice(0, 100000)
-        : "A text preview is not available for this file type in the frontend demo. The original file has not been parsed. You can review its metadata and illustrative structure in the other tabs.";
-      const id = crypto.randomUUID();
-      addDocument({
-        ...values,
-        id,
-        tags: [
-          ...new Set(
-            values.tags
-              .split(",")
-              .map((t) => t.trim().toLowerCase())
-              .filter(Boolean),
-          ),
-        ],
-        filename: file.name,
-        fileType: ext === "MARKDOWN" ? "MD" : ext,
-        size: file.size,
-        createdAt: new Date().toISOString(),
-        status: "Ready",
-        content,
-      });
-      router.push(`/documents/${id}?created=1`);
-    } catch {
-      setError("We couldn’t read this file. Please select it again and retry.");
+      const created = await api.upload<ApiDocumentDetail>(
+        "/documents",
+        file,
+        {
+          title: values.title,
+          description: values.description,
+          author: values.author,
+          document_type: values.documentType ?? "Reference",
+          tags: values.tags
+            .split(",")
+            .map((t) => t.trim().toLowerCase())
+            .filter(Boolean)
+            .join(","),
+        },
+        setProgress,
+      );
+      addDocument(created);
+      setStatusText("Upload complete. Building your OKF…");
+      await processDocument(created.id);
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") {
+        setSaving(false);
+        return;
+      }
+      setError(
+        cause instanceof ApiError
+          ? cause.message
+          : "We couldn’t upload this file. Please retry.",
+      );
       setSaving(false);
     }
   }
+
   return (
     <div className="page">
       <Link href="/" className="back-link">
@@ -122,7 +145,7 @@ export default function UploadPage() {
       </Link>
       <PageHeader
         title="Bring your knowledge in."
-        description="Start with a document. Give it context. Make it easier to find."
+        description="Start with a document. Give it context. Make it searchable."
       />
       <div className="upload-layout">
         <Form {...form}>
@@ -161,17 +184,21 @@ export default function UploadPage() {
             <div className="form-actions">
               <span>
                 <ShieldCheck size={15} />
-                Saved to this browser only
+                Stored on your OKF server
               </span>
               <Button asChild variant="outline">
                 <Link href="/">Cancel</Link>
               </Button>
               <Button
                 type="submit"
-                disabled={saving || (!!file && progress < 100)}
+                disabled={saving}
               >
-                {saving ? <LoaderCircle size={16} className="spin" /> : null}
-                {saving ? "Saving document…" : "Save & review"}
+                {saving ? (
+                  <LoaderCircle size={16} className="spin" />
+                ) : null}
+                {saving
+                  ? (statusText || "Saving document…")
+                  : "Save & build OKF"}
                 {!saving && <ArrowRight size={16} />}
               </Button>
             </div>
@@ -203,13 +230,19 @@ export default function UploadPage() {
           <hr />
           <h4>What happens next?</h4>
           <p>
-            You’ll review your document and see an illustrative OKF structure
-            preview.
+            The server extracts the text, generates a validated OKF bundle, and
+            indexes it for semantic search.
           </p>
           <div className="aside-note">
-            This is a frontend workspace. Files stay on your device; no OKF
-            generation or document processing takes place.
+            PDF, DOCX, Markdown, and TXT are processed in place; the original
+            file is preserved in every downloaded bundle.
           </div>
+          {saving && (
+            <div className="notice" role="status" style={{ marginTop: 12 }}>
+              <TriangleAlert size={15} />
+              Keep this tab open while the document is processed.
+            </div>
+          )}
         </aside>
       </div>
     </div>

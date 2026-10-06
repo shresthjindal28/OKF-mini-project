@@ -14,11 +14,12 @@ class Base(DeclarativeBase):
 
 @lru_cache
 def get_engine() -> Engine:
+    settings = get_settings()
     return create_engine(
-        get_settings().database_url.get_secret_value(),
+        settings.database_url.get_secret_value(),
         pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=5,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
         hide_parameters=True,
         connect_args={"connect_timeout": 10},
     )

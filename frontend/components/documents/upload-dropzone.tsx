@@ -46,7 +46,7 @@ export function UploadDropzone({
             </p>
             <div
               role="progressbar"
-              aria-label="Preparing local file"
+              aria-label="Uploading file"
               aria-valuenow={progress}
               aria-valuemin={0}
               aria-valuemax={100}
@@ -56,8 +56,10 @@ export function UploadDropzone({
             </div>
             <small>
               {progress === 100
-                ? "File ready · stays in your browser"
-                : "Preparing local file…"}
+                ? "Upload complete · building OKF…"
+                : progress > 0
+                  ? `Uploading… ${progress}%`
+                  : "File selected · ready to upload"}
             </small>
           </div>
           {progress === 100 && <Check className="success-icon" size={18} />}

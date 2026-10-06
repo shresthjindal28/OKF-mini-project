@@ -229,3 +229,59 @@ def test_semantic_ranking_and_configuration_guard(api: TestClient) -> None:
         verify_database(session, changed)
     assert raised.value.code == "EMBEDDING_CONFIG_MISMATCH"
     engine.dispose()
+
+
+def test_metadata_update_and_stats(api: TestClient) -> None:
+    document_id = upload(api, "update-me.md", b"# Knowledge\n\nUpdateable content", "text/markdown")
+    api.post(f"/api/v1/documents/{document_id}/process")
+    before = api.get(f"/api/v1/documents/{document_id}").json()["data"]
+
+    # Partial metadata update regenerates the OKF artifact with new metadata.
+    patched = api.patch(
+        f"/api/v1/documents/{document_id}",
+        json={"title": "Renamed document", "tags": ["renamed", "metadata"]},
+    )
+    assert patched.status_code == 200, patched.text
+    updated = patched.json()["data"]
+    assert updated["title"] == "Renamed document"
+    assert updated["tags"] == ["renamed", "metadata"]
+    assert updated["description"] == before["description"]
+    okf = api.get(f"/api/v1/documents/{document_id}/okf").json()["data"]
+    assert "title: Renamed document" in okf["files"]["document.md"]
+    download = api.get(f"/api/v1/documents/{document_id}/download")
+    assert download.status_code == 200
+    archive = zipfile.ZipFile(io.BytesIO(download.content))
+    assert "title: Renamed document" in archive.read("document.md").decode("utf-8")
+
+    # Search finds documents by author and tag, not only title.
+    api.patch(f"/api/v1/documents/{document_id}", json={"author": "Test Author"})
+    by_tag = api.get("/api/v1/documents", params={"search": "renamed", "page_size": 100})
+    assert document_id in [item["id"] for item in by_tag.json()["data"]["items"]]
+    by_author = api.get("/api/v1/documents", params={"search": "Test Author", "page_size": 100})
+    assert document_id in [item["id"] for item in by_author.json()["data"]["items"]]
+    by_status = api.get("/api/v1/documents", params={"status_group": "ready", "page_size": 100})
+    assert document_id in [item["id"] for item in by_status.json()["data"]["items"]]
+
+    # Empty PATCH bodies and blank titles are rejected.
+    assert api.patch(f"/api/v1/documents/{document_id}", json={}).status_code == 422
+    assert api.patch(f"/api/v1/documents/{document_id}", json={"title": "  "}).status_code == 422
+    assert api.patch("/api/v1/documents/00000000-0000-0000-0000-000000000000", json={"title": "x"}).status_code == 404
+
+    # Stats aggregate reflects this document.
+    stats = api.get("/api/v1/stats").json()["data"]
+    assert stats["total"] >= 1
+    assert stats["ready"] >= 1
+    assert stats["indexed_chunks"] >= 1
+    assert stats["total_bytes"] > 0
+
+    # Updates are serialized against the advisory lock like other mutations.
+    base = get_settings()
+    engine = create_engine(
+        Settings(database_url=base.test_database_url).database_url.get_secret_value()
+    )
+    with document_lock(engine, UUID(document_id)):
+        assert (
+            api.patch(f"/api/v1/documents/{document_id}", json={"title": "x"}).status_code == 409
+        )
+    assert api.delete(f"/api/v1/documents/{document_id}").status_code == 200
+    engine.dispose()

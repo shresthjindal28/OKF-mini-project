@@ -5,18 +5,19 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
-from app.api import documents, okf, search
+from app.api import documents, okf, search, stats
 from app.core.config import get_settings
 from app.core.database import get_engine, get_session, verify_database
 from app.core.errors import AppError
 from app.core.logging import configure_logging
-from app.core.middleware import BodyLimitMiddleware
+from app.core.middleware import BodyLimitMiddleware, NoStoreCacheMiddleware
 from app.schemas.common import Envelope
 
 logger = logging.getLogger(__name__)
@@ -57,11 +58,13 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Content-Type"],
         expose_headers=["Content-Disposition"],
         allow_credentials=False,
     )
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+    app.add_middleware(NoStoreCacheMiddleware)
 
     @app.exception_handler(AppError)
     async def app_error(request: Request, exc: AppError) -> JSONResponse:
@@ -85,7 +88,7 @@ def create_app() -> FastAPI:
         logger.error("request_failed exception_type=%s", type(exc).__name__)
         return error_response("INTERNAL_ERROR", "An internal error occurred", 500)
 
-    for router in (documents.router, okf.router, search.router):
+    for router in (documents.router, okf.router, search.router, stats.router):
         app.include_router(router, prefix="/api/v1")
 
     @app.get("/health/live", response_model=Envelope[dict[str, str]])

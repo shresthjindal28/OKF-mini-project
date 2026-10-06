@@ -15,7 +15,13 @@ from app.core.errors import AppError
 from app.models.document import DocumentStatus
 from app.models.processing_job import ProcessingJob
 from app.schemas.common import Envelope
-from app.schemas.document import DocumentCreate, DocumentDetail, DocumentPage, JobRead
+from app.schemas.document import (
+    DocumentCreate,
+    DocumentDetail,
+    DocumentPage,
+    DocumentUpdate,
+    JobRead,
+)
 from app.services.document_service import DocumentService, ProcessingService
 from app.utils.files import LocalStorage
 
@@ -60,6 +66,7 @@ def list_documents(
     page_size: int = Query(20, ge=1, le=100),
     search: str | None = Query(None, max_length=500),
     status: DocumentStatus | None = None,
+    status_group: Literal["ready", "draft", "failed"] | None = None,
     document_type: str | None = Query(None, max_length=100),
     sort_by: Literal["created_at", "updated_at", "title"] = "created_at",
     order: Literal["asc", "desc"] = "desc",
@@ -67,7 +74,17 @@ def list_documents(
     service: DocumentService = Depends(get_document_service),
 ) -> Envelope[DocumentPage]:
     return Envelope(
-        data=service.list(session, page, page_size, search, status, document_type, sort_by, order)
+        data=service.list(
+            session,
+            page,
+            page_size,
+            search,
+            status,
+            status_group,
+            document_type,
+            sort_by,
+            order,
+        )
     )
 
 
@@ -78,6 +95,17 @@ def get_document(
     service: DocumentService = Depends(get_document_service),
 ) -> Envelope[DocumentDetail]:
     return Envelope(data=DocumentDetail.model_validate(service.get(session, document_id)))
+
+
+@router.patch("/{document_id}", response_model=Envelope[DocumentDetail])
+def update_document(
+    document_id: UUID,
+    changes: DocumentUpdate,
+    engine: Engine = Depends(get_engine),
+    service: DocumentService = Depends(get_document_service),
+) -> Envelope[DocumentDetail]:
+    document = service.update(engine, document_id, changes)
+    return Envelope(data=DocumentDetail.model_validate(document))
 
 
 @router.delete("/{document_id}", response_model=Envelope[dict[str, bool]])

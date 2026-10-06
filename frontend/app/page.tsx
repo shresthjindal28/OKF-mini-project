@@ -8,10 +8,11 @@ import {
   CheckCheck,
   PencilLine,
   HardDrive,
-  Upload,
   Braces,
+  Upload,
   FileText,
   ShieldCheck,
+  Layers,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -19,8 +20,8 @@ import { useDocuments } from "@/components/documents/document-provider";
 import { DocumentTable } from "@/components/documents/document-table";
 import { formatSize } from "@/lib/documents";
 export default function Home() {
-  const { documents, loaded } = useDocuments();
-  const ready = documents.filter((d) => d.status === "Ready").length;
+  const { documents, stats, loaded } = useDocuments();
+  const ready = stats?.ready ?? 0;
   return (
     <div className="page dashboard">
       <PageHeader
@@ -107,29 +108,29 @@ export default function Home() {
         {[
           {
             label: "Total documents",
-            value: documents.length,
+            value: stats?.total ?? 0,
             icon: Files,
             note: "In your workspace",
           },
           {
-            label: "Ready to review",
+            label: "Ready & indexed",
             value: ready,
             icon: CheckCheck,
-            note: "Metadata completed",
+            note: "Searchable in the vector index",
             color: "green",
           },
           {
-            label: "Drafts",
-            value: documents.length - ready,
+            label: "In progress",
+            value: stats?.in_progress ?? 0,
             icon: PencilLine,
-            note: "A work in progress",
+            note: "Uploaded or processing",
             color: "orange",
           },
           {
             label: "Source file size",
-            value: formatSize(documents.reduce((n, d) => n + d.size, 0)),
+            value: formatSize(stats?.total_bytes ?? 0),
             icon: HardDrive,
-            note: "Combined original file sizes",
+            note: `${stats?.indexed_chunks ?? 0} chunks indexed`,
           },
         ].map(({ label, value, icon: Icon, note, color }) => (
           <div className="stat" key={label}>
@@ -150,7 +151,7 @@ export default function Home() {
           <div>
             <h2>
               Recent documents{" "}
-              <span className="count-badge">{documents.length}</span>
+              <span className="count-badge">{stats?.total ?? 0}</span>
             </h2>
             <p>Your latest additions, all in one place.</p>
           </div>
@@ -190,8 +191,8 @@ export default function Home() {
             {
               n: "03",
               icon: Braces,
-              title: "See the structure",
-              text: "Review your document and explore a visual OKF preview.",
+              title: "Get the structure",
+              text: "A validated OKF bundle, extracted text, and a semantic index.",
             },
           ].map(({ n, icon: Icon, title, text }) => (
             <div className="workflow-item" key={n}>
@@ -209,11 +210,12 @@ export default function Home() {
       </section>
       <div className="demo-note">
         <span>
-          <span className="demo-dot" />A workspace to explore
+          <span className="demo-dot" />
+          <Layers size={13} /> Powered by OKF v0.2
         </span>
         <p>
-          You’re viewing a frontend preview with sample documents. OKF structure
-          previews are illustrative.
+          Every uploaded document becomes a portable, validated OKF bundle with
+          semantic search built in.
         </p>
         <Link href="/documents">
           Explore library

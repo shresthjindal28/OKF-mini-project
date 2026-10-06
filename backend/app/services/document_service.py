@@ -8,7 +8,7 @@ from threading import BoundedSemaphore
 from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Engine, delete, func, select, text, update
+from sqlalchemy import Engine, String, cast, delete, func, or_, select, text, update
 from sqlalchemy.orm import Session, load_only
 
 from app.ai.huggingface_client import HuggingFaceClient
@@ -18,7 +18,13 @@ from app.core.errors import AppError
 from app.models.document import Document, DocumentStatus
 from app.models.document_chunk import DocumentChunk
 from app.models.processing_job import ProcessingJob
-from app.schemas.document import DocumentCreate, DocumentPage, DocumentSummary
+from app.schemas.document import (
+    DocumentCreate,
+    DocumentPage,
+    DocumentSummary,
+    DocumentUpdate,
+    LibraryStats,
+)
 from app.schemas.okf import OKFRepresentation
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
@@ -28,6 +34,13 @@ from app.utils.files import Storage
 from app.utils.validation import safe_display_filename, validate_file
 
 logger = logging.getLogger(__name__)
+
+IN_PROGRESS_STATUSES = (
+    DocumentStatus.UPLOADED,
+    DocumentStatus.PROCESSING,
+    DocumentStatus.EXTRACTED,
+    DocumentStatus.STRUCTURING,
+)
 
 
 @lru_cache
@@ -108,6 +121,27 @@ class DocumentService:
             raise AppError("DOCUMENT_NOT_FOUND", "Document not found", 404)
         return document
 
+    def update(
+        self, engine: Engine, document_id: UUID, changes: DocumentUpdate
+    ) -> Document:
+        # Serialized against processing/delete so OKF artifacts never diverge from metadata.
+        with document_lock(engine, document_id) as session:
+            document = self.get(session, document_id)
+            payload = changes.model_dump(exclude_unset=True)
+            if not payload:
+                raise AppError("NO_CHANGES", "Provide at least one field to update", 422)
+            for field, value in payload.items():
+                setattr(document, field, value)
+            if document.okf_content is not None:
+                self.generate_okf(session, document, self.storage.read(document.source_path))
+            session.commit()
+            session.refresh(document)
+            return document
+
+    @staticmethod
+    def _escape_like(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
     def list(
         self,
         session: Session,
@@ -115,15 +149,30 @@ class DocumentService:
         page_size: int,
         search: str | None,
         status: DocumentStatus | None,
+        status_group: Literal["ready", "draft", "failed"] | None,
         document_type: str | None,
         sort_by: Literal["created_at", "updated_at", "title"],
         order: Literal["asc", "desc"],
     ) -> DocumentPage:
         statement = select(Document)
         if search:
-            statement = statement.where(Document.title.icontains(search, autoescape=True))
+            needle = f"%{self._escape_like(search)}%"
+            statement = statement.where(
+                or_(
+                    Document.title.ilike(needle, escape="\\"),
+                    Document.author.ilike(needle, escape="\\"),
+                    Document.description.ilike(needle, escape="\\"),
+                    cast(Document.tags, String).ilike(needle, escape="\\"),
+                )
+            )
         if status:
             statement = statement.where(Document.status == status)
+        if status_group == "ready":
+            statement = statement.where(Document.status == DocumentStatus.READY)
+        elif status_group == "failed":
+            statement = statement.where(Document.status == DocumentStatus.FAILED)
+        elif status_group == "draft":
+            statement = statement.where(Document.status.in_(IN_PROGRESS_STATUSES))
         if document_type:
             statement = statement.where(Document.document_type == document_type)
         total = session.scalar(select(func.count()).select_from(statement.subquery())) or 0
@@ -161,6 +210,36 @@ class DocumentService:
             page_size=page_size,
         )
 
+    def stats(self, session: Session) -> LibraryStats:
+        row = session.execute(
+            select(
+                func.count().label("total"),
+                func.count()
+                .filter(Document.status == DocumentStatus.READY)
+                .label("ready"),
+                func.count()
+                .filter(Document.status.in_(IN_PROGRESS_STATUSES))
+                .label("in_progress"),
+                func.count()
+                .filter(Document.status == DocumentStatus.FAILED)
+                .label("failed"),
+                func.coalesce(func.sum(Document.file_size), 0).label("total_bytes"),
+                select(func.count())
+                .select_from(DocumentChunk)
+                .correlate(None)
+                .scalar_subquery()
+                .label("indexed_chunks"),
+            )
+        ).one()
+        return LibraryStats(
+            total=row.total,
+            ready=row.ready,
+            in_progress=row.in_progress,
+            failed=row.failed,
+            total_bytes=row.total_bytes,
+            indexed_chunks=row.indexed_chunks,
+        )
+
     def delete(self, engine: Engine, document_id: UUID) -> None:
         with document_lock(engine, document_id) as session:
             document = self.get(session, document_id)
@@ -186,6 +265,26 @@ class DocumentService:
             self.storage.read(document.source_path),
             PurePosixPath(document.source_path).suffix,
         )
+
+    def generate_okf(self, session: Session, document: Document, original: bytes) -> None:
+        """Regenerate deterministic OKF files/artifacts from current document state."""
+        service = OKFService()
+        extension = PurePosixPath(document.source_path).suffix
+        representation = service.generate(
+            title=document.title,
+            description=document.description,
+            document_type=document.document_type,
+            tags=document.tags,
+            text=document.extracted_text or "",
+            source_name=document.original_filename,
+            source_extension=extension,
+            author=document.author,
+        )
+        self.storage.write_artifact(
+            document.id, service.package(representation.files, original, extension)
+        )
+        document.okf_content, document.okf_metadata = representation.files, representation.metadata
+        session.commit()
 
 
 class ProcessingService:
@@ -309,20 +408,4 @@ class ProcessingService:
         session.commit()
 
     def _generate(self, session: Session, document: Document, original: bytes) -> None:
-        service = OKFService()
-        extension = PurePosixPath(document.source_path).suffix
-        representation = service.generate(
-            title=document.title,
-            description=document.description,
-            document_type=document.document_type,
-            tags=document.tags,
-            text=document.extracted_text or "",
-            source_name=document.original_filename,
-            source_extension=extension,
-            author=document.author,
-        )
-        self.storage.write_artifact(
-            document.id, service.package(representation.files, original, extension)
-        )
-        document.okf_content, document.okf_metadata = representation.files, representation.metadata
-        session.commit()
+        self.documents.generate_okf(session, document, original)

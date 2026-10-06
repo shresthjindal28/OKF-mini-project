@@ -1574,6 +1574,110 @@ dd {
     @apply hidden;
   }
 }
+.status-badge.failed {
+  background: #fbeee8;
+  border-color: #f2d8cb;
+  color: #b05c3a;
+}
+.dark .status-badge.failed {
+  background: #3d2b22;
+  border-color: #553a2c;
+  color: #e0a184;
+}
+.status-badge.processing i {
+  animation: status-pulse 1.2s ease-in-out infinite;
+}
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.error-banner {
+  @apply flex items-start gap-[9px] mb-[22px] rounded-[5px] text-[11px] leading-[1.8];
+  padding: 13px 15px;
+  border: 1px solid #f2d8cb;
+  background: #fbeee8;
+  color: #b05c3a;
+}
+.dark .error-banner {
+  background: #3d2b22;
+  border-color: #553a2c;
+  color: #e0a184;
+}
+.error-banner button {
+  @apply underline underline-offset-[2px] cursor-pointer bg-transparent p-0;
+  border: 0;
+  font: inherit;
+  color: inherit;
+}
+.pagination {
+  @apply flex items-center justify-center gap-[9px] mt-[20px];
+}
+.pagination > span {
+  @apply text-[10px];
+  color: var(--muted);
+}
+.search-layout {
+  @apply flex flex-col gap-[13px];
+}
+.hit-card {
+  @apply block rounded-[6px] p-[17px] mb-[2px];
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.hit-card:hover {
+  border-color: var(--accent);
+}
+.hit-card h3 {
+  @apply font-[500] text-[14px] mb-[3px];
+}
+.hit-similarity {
+  @apply inline-flex items-center gap-[6px] text-[9px] rounded-[4px] px-[7px] py-[3px] mb-[9px];
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.hit-similarity i {
+  @apply w-[42px] h-[3px] rounded-full overflow-hidden inline-block;
+  background: var(--border);
+  position: relative;
+}
+.hit-similarity i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: var(--sim, 0%);
+  background: var(--green);
+}
+.hit-content {
+  @apply text-[11px] leading-[1.8];
+  color: var(--muted);
+}
+.hit-content mark {
+  background: var(--accent-soft);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+.dark .hit-content mark {
+  color: var(--foreground);
+}
+.okf-files {
+  @apply flex gap-[6px] flex-wrap mb-[13px];
+}
+.okf-file-tab {
+  @apply text-[10px] rounded-[4px] px-[9px] py-[5px] cursor-pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+}
+.okf-file-tab.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

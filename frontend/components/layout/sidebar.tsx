@@ -9,13 +9,14 @@ import {
   Plus,
   ChevronsUpDown,
   Layers2,
+  Search,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDocuments } from "@/components/documents/document-provider";
 export function Sidebar({ open, close }: { open: boolean; close: () => void }) {
   const path = usePathname();
-  const { documents } = useDocuments();
+  const { stats } = useDocuments();
   return (
     <>
       <div
@@ -41,7 +42,7 @@ export function Sidebar({ open, close }: { open: boolean; close: () => void }) {
         <div className="workspace">
           <span className="workspace-avatar">P</span>
           <span>
-            Personal workspace<small>Local workspace</small>
+            Personal workspace<small>OKF workspace</small>
           </span>
           <ChevronsUpDown size={14} />
         </div>
@@ -50,6 +51,7 @@ export function Sidebar({ open, close }: { open: boolean; close: () => void }) {
           {[
             { href: "/", label: "Overview", icon: LayoutGrid },
             { href: "/documents", label: "Documents", icon: Files },
+            { href: "/search", label: "Semantic search", icon: Search },
             { href: "/upload", label: "Upload document", icon: Plus },
           ].map(({ href, label, icon: Icon }) => (
             <Link
@@ -60,8 +62,8 @@ export function Sidebar({ open, close }: { open: boolean; close: () => void }) {
             >
               <Icon size={18} />
               {label}
-              {href === "/documents" && (
-                <span className="nav-count">{documents.length}</span>
+              {href === "/documents" && stats && (
+                <span className="nav-count">{stats.total}</span>
               )}
             </Link>
           ))}
@@ -77,19 +79,19 @@ export function Sidebar({ open, close }: { open: boolean; close: () => void }) {
               <br />
               An open place to start.
             </p>
-            <Link href="/documents/getting-started" onClick={close}>
-              Explore the sample guide <ArrowUpRight size={14} />
+            <Link href="/upload" onClick={close}>
+              Build your first OKF <ArrowUpRight size={14} />
             </Link>
           </div>
           <div className="local-status">
             <span />
-            Stored on this browser <span className="version">v0.1</span>
+            Connected to OKF server <span className="version">v0.2</span>
           </div>
           <Button asChild variant="ghost" className="profile">
             <Link href="/documents" onClick={close}>
               <span className="avatar">P</span>
               <span>
-                Personal workspace<small>Frontend preview</small>
+                Personal workspace<small>OKF Builder</small>
               </span>
             </Link>
           </Button>
