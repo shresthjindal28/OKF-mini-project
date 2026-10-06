@@ -40,9 +40,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     try:
         await run_in_threadpool(check)
-    except Exception:
+    except Exception as exc:
+        # Log the reason only (AppError code or exception type); raw exception text
+        # may embed connection details that must stay out of logs.
+        reason = exc.code if isinstance(exc, AppError) else type(exc).__name__
         logger.error(
-            "startup_database_check_failed: check connection, migrations, and embedding configuration"
+            "startup_database_check_failed reason=%s: check connection, migrations, and embedding configuration",
+            reason,
         )
         raise RuntimeError("Database readiness check failed") from None
     yield
